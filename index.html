@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>முழுமையான பங்குச் சந்தை பகுப்பாய்வு</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+</head>
+<body>
+
+<div class="header-section">
+    <h2><i class="fas fa-chart-line"></i> முழுமையான பங்குச் சந்தை பகுப்பாய்வு</h2>
+    <p class="mb-1">7 CSV கோப்புகளை ஒப்பிட்டு பங்கு பரிந்துரைகள் (EQ பங்குகள் மட்டும்)</p>
+    <p class="mb-0 small opacity-90">
+        <i class="far fa-calendar-alt"></i> ரிப்போர்ட் தேதி: 
+        <span id="reportDate">---</span> | 
+        <i class="far fa-clock"></i> புதுப்பித்த நேரம்: 
+        <span id="reportTime">---</span>
+    </p>
+</div>
+
+<div class="container">
+    <div class="instructions">
+        <h5><i class="fas fa-info-circle text-info"></i> CSV நெடுவரிசை பெயர்களை சரிபார்க்கவும்:</h5>
+        <p><strong>StocksTraded.csv</strong> கோப்பு முக்கிய கோப்பாக பயன்படுத்தப்படும். இதில் பின்வரும் நெடுவரிசைகள் இருக்க வேண்டும்:</p>
+        <ul>
+            <li><strong>பங்கு பெயர்/சின்னம்</strong> (எ.கா: SYMBOL, Symbol, ticker)</li>
+            <li><strong>விலை</strong> (எ.கா: LTP, Last Price, close, price) - <span class="text-success">முக்கியம்</span></li>
+            <li><strong>மாற்றம் சதவீதம்</strong> (எ.கா: %CHNG, PCT_CHG, %Change) - <span class="text-success">முக்கியம்</span></li>
+            <li><strong>Series</strong> (எ.கா: EQ, BE, BL, இதில் <span class="series-badge">EQ</span> பங்குகள் மட்டும் பகுப்பாய்வு செய்யப்படும்)</li>
+        </ul>
+        <div class="series-filter">
+            <strong><i class="fas fa-filter"></i> முக்கிய அம்சங்கள்:</strong> 
+            <span class="series-badge">EQ பங்குகள் மட்டும்</span> | 
+            <span class="target-badge">BUY - டார்கெட்/ஸ்டாப் லாஸ்</span> | 
+            <span class="sell-target-badge">SELL - டார்கெட்/ஸ்டாப் லாஸ்</span> |
+            <span class="badge-custom" style="background-color:#f59e0b">மாற்றம் தொகை கணக்கிடப்படும்</span>
+            <span class="badge-custom" style="background-color:#8b5cf6">ரீபிரஷ் அழியாது</span>
+        </div>
+    </div>
+    
+    <div class="upload-zone mb-5">
+        <h4 class="mb-4 text-primary"><i class="fas fa-upload"></i> 1. CSV கோப்புகளை பதிவேற்றவும்</h4>
+        <div class="file-grid" id="fileGrid"></div>
+        
+        <div class="row">
+            <div class="col-md-4">
+                <button class="btn btn-info w-100 py-3 mb-3" onclick="checkColumns()" id="checkColumnsBtn">
+                    <i class="fas fa-search"></i> CSV தரவை சரிபார்க்கவும்
+                </button>
+            </div>
+            <div class="col-md-4">
+                <button class="btn btn-warning w-100 py-3 mb-3" onclick="loadFromLocalStorage()" id="loadBtn">
+                    <i class="fas fa-history"></i> முந்தைய தரவை ஏற்று
+                </button>
+            </div>
+            <div class="col-md-4">
+                <button class="btn btn-primary btn-lg w-100 py-3 fw-bold" onclick="analyzeEverything()" id="analyzeBtn">
+                    <i class="fas fa-sync-alt"></i> பகுப்பாய்வைத் தொடங்கு
+                </button>
+            </div>
+        </div>
+        
+        <div id="uploadStatus" class="mt-3 text-center"></div>
+        <div id="columnInfo" class="debug-info"></div>
+        <div id="dataPreview" class="debug-info" style="background-color:#e0f2fe; border-color:#0ea5e9;"></div>
+        <div id="eqFilterInfo" class="debug-info" style="background-color:#d1fae5; border-color:#10b981;"></div>
+    </div>
+
+    <!-- பழைய ரிப்போர்ட் எச்சரிக்கை -->
+    <div id="oldReportWarning" class="old-report-warning no-print" style="display: none;">
+        <i class="fas fa-exclamation-triangle text-warning"></i>
+        <strong> கவனம்:</strong> இது பழைய சேமிக்கப்பட்ட ரிப்போர்ட் ஆகும். 
+        புதிய தரவிற்கு CSV கோப்புகளை மீண்டும் பதிவேற்றி பகுப்பாய்வு செய்யவும்.
+    </div>
+
+    <div id="dashboard" style="display:none;">
+        <div class="data-info">
+            <h5><i class="fas fa-database text-success"></i> தரவு பகுப்பாய்வு முடிவுகள்</h5>
+            <div id="dataSummary">
+                <p><strong>StocksTraded.csv:</strong> <span id="totalRows">0</span> பங்குகள் (மொத்தம்) | 
+                <strong><span class="series-badge">EQ</span> பங்குகள்:</strong> <span id="eqRows">0</span> | 
+                <strong>முக்கிய பங்குகள் (1+ காரணங்கள்):</strong> <span id="highlightedRows">0</span></p>
+            </div>
+        </div>
+        
+        <!-- முக்கிய பங்குகள் டாஸ்போர்டு -->
+        <div id="topStocksDashboard" class="top-stocks-dashboard no-print" style="display:none;">
+            <div class="dashboard-header">
+                <h4 class="mb-0"><i class="fas fa-chart-pie text-primary"></i> முக்கிய பங்குகள் டாஸ்போர்டு</h4>
+                <button class="btn btn-sm btn-outline-primary" onclick="updateDashboard()">
+                    <i class="fas fa-redo-alt"></i> புதுப்பிக்க
+                </button>
+            </div>
+            
+            <div class="dashboard-stats">
+                <div class="dashboard-stat-item">
+                    <div class="dashboard-stat-value" id="dash-total">0</div>
+                    <div class="dashboard-stat-label">மொத்த பங்குகள்</div>
+                </div>
+                <div class="dashboard-stat-item" style="border-color: #10b981;">
+                    <div class="dashboard-stat-value text-success" id="dash-buy">0</div>
+                    <div class="dashboard-stat-label">BUY</div>
+                </div>
+                <div class="dashboard-stat-item" style="border-color: #ef4444;">
+                    <div class="dashboard-stat-value text-danger" id="dash-sell">0</div>
+                    <div class="dashboard-stat-label">SELL</div>
+                </div>
+                <div class="dashboard-stat-item" style="border-color: #f59e0b;">
+                    <div class="dashboard-stat-value text-warning" id="dash-hold">0</div>
+                    <div class="dashboard-stat-label">HOLD</div>
+                </div>
+                <div class="dashboard-stat-item" style="border-color: #8b5cf6;">
+                    <div class="dashboard-stat-value" style="color: #8b5cf6;" id="dash-avg-reasons">0</div>
+                    <div class="dashboard-stat-label">சராசரி காரணங்கள்</div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="dashboard-category">
+                        <div class="category-header">
+                            <span class="category-title"><i class="fas fa-arrow-up text-success"></i> முதல் 5 BUY பங்குகள்</span>
+                            <span class="category-count" id="buy-count">0</span>
+                        </div>
+                        <div id="top-buy-stocks"></div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="dashboard-category">
+                        <div class="category-header">
+                            <span class="category-title"><i class="fas fa-arrow-down text-danger"></i> முதல் 5 SELL பங்குகள்</span>
+                            <span class="category-count" id="sell-count">0</span>
+                        </div>
+                        <div id="top-sell-stocks"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="dashboard-category">
+                        <div class="category-header">
+                            <span class="category-title"><i class="fas fa-star text-warning"></i> அதிக காரணங்கள் கொண்ட பங்குகள்</span>
+                            <span class="category-count" id="reason-count">0</span>
+                        </div>
+                        <div id="top-reason-stocks"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="dashboard-chart-container">
+                <h6 class="mb-3"><i class="fas fa-chart-bar"></i> சிக்னல் விநியோகம்</h6>
+                <div class="chart-placeholder" id="signalChartPlaceholder">
+                    <p class="text-muted mb-0"><i class="fas fa-chart-bar fa-2x"></i><br>விளக்கப்படம் காண்பிக்கப்படும்</p>
+                </div>
+            </div>
+            
+            <!-- டாஸ்போர்டு தேர்வு பகுதி -->
+            <div class="dashboard-selection-section mt-4">
+                <h6><i class="fas fa-check-circle text-info"></i> தேர்வு செய்யப்பட்ட பங்குகள்</h6>
+                <div class="d-flex gap-2 flex-wrap mb-3">
+                    <button class="btn btn-sm btn-outline-success" onclick="selectAllBuyStocks()">
+                        <i class="fas fa-check"></i> அனைத்து BUY பங்குகள்
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="selectAllSellStocks()">
+                        <i class="fas fa-check"></i> அனைத்து SELL பங்குகள்
+                    </button>
+                    <button class="btn btn-sm btn-outline-warning" onclick="selectMultiReasonStocks()">
+                        <i class="fas fa-check"></i> 2+ காரணங்கள் உள்ளவை
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="clearAllSelections()">
+                        <i class="fas fa-times"></i> தேர்வு நீக்கு
+                    </button>
+                </div>
+                <div id="dashboardSelectionCount" class="alert alert-info py-2" style="display: none;">
+                    <i class="fas fa-check-circle"></i> <span id="selectedDashboardCount">0</span> பங்குகள் தேர்ந்தெடுக்கப்பட்டது
+                </div>
+            </div>
+            
+            <div class="dashboard-actions">
+                <button class="btn btn-sm btn-outline-success" onclick="showDashboardBuyOnly()">
+                    <i class="fas fa-filter"></i> BUY மட்டும்
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="showDashboardSellOnly()">
+                    <i class="fas fa-filter"></i> SELL மட்டும்
+                </button>
+                <button class="btn btn-sm btn-outline-warning" onclick="showDashboardMultiReason()">
+                    <i class="fas fa-filter"></i> 2+ காரணங்கள்
+                </button>
+                <button class="btn btn-sm btn-outline-info" onclick="exportDashboardData()">
+                    <i class="fas fa-download"></i> டேட்டா பதிவிறக்கு
+                </button>
+            </div>
+        </div>
+        
+        <!-- முக்கிய பங்குகள் பிரிவு -->
+        <div id="topStocksSection" style="display:none;">
+            <div class="top-stocks">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0"><i class="fas fa-star text-warning"></i> முக்கிய பங்குகள் (பல காரணங்கள் + டார்கெட்/ஸ்டாப் லாஸ்)</h5>
+                    <div>
+                        <span class="selected-count-badge me-2" id="selectedCountBadge" style="display:none;">0 தேர்ந்தெடுக்கப்பட்டது</span>
+                        <button class="btn print-btn me-2 no-print" onclick="printSelectedStocks()">
+                            <i class="fas fa-print"></i> தேர்ந்தெடுக்கப்பட்டவை பிரிண்ட்
+                        </button>
+                        <button class="btn whatsapp-share-all no-print" onclick="shareAllTopStocks()">
+                            <i class="fab fa-whatsapp"></i> WhatsApp இல் பகிர்
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="alert alert-info no-print">
+                    <div class="form-check">
+                        <input class="form-check-input select-all-checkbox" type="checkbox" id="selectAllTopStocks" onchange="toggleSelectAllTopStocks()">
+                        <label class="form-check-label fw-bold" for="selectAllTopStocks">
+                            <i class="fas fa-check-square"></i> அனைத்து முக்கிய பங்குகளையும் தேர்ந்தெடுக்க
+                        </label>
+                    </div>
+                    <hr class="my-2">
+                    <i class="fas fa-info-circle"></i> <strong>குறிப்பு:</strong> 
+                    • BUY: டார்கெட் = விலை + (மாற்றம் × 1.5) | ஸ்டாப் லாஸ் = விலை - (மாற்றம் × 1.0)<br>
+                    • SELL: டார்கெட் = விலை - (மாற்றம் × 1.0) | ஸ்டாப் லாஸ் = விலை + (மாற்றம் × 1.5)
+                </div>
+                <div id="topStocksList"></div>
+            </div>
+        </div>
+        
+        <h3 class="mb-4"><i class="fas fa-tachometer-alt"></i> பகுப்பாய்வு முடிவுகள் (<span class="series-badge">EQ</span> பங்குகள் மட்டும்)</h3>
+        
+        <div class="row g-4 mb-4">
+            <div class="col-md-3">
+                <div class="stat-box">
+                    <h6 class="text-muted">மொத்த EQ பங்குகள்</h6>
+                    <h3 id="totalS" class="text-dark">0</h3>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-box" style="border-color:var(--success-color)">
+                    <h6 class="text-muted">வாங்க (BUY)</h6>
+                    <h3 id="buyS" class="text-success">0</h3>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-box" style="border-color:var(--danger-color)">
+                    <h6 class="text-muted">விற்க (SELL)</h6>
+                    <h3 id="sellS" class="text-danger">0</h3>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-box" style="border-color:var(--warning-color)">
+                    <h6 class="text-muted">காத்திருக்க (HOLD)</h6>
+                    <h3 id="holdS" class="text-warning">0</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="filter-section no-print">
+            <div class="row g-3 align-items-center">
+                <div class="col-md-3">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fas fa-search"></i></span>
+                        <input type="text" id="search" class="form-control" placeholder="பங்கு பெயரை தேடுக...">
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <select id="sigFilter" class="form-select">
+                        <option value="ALL">அனைத்து சிக்னல்கள்</option>
+                        <option value="BUY">BUY மட்டும்</option>
+                        <option value="SELL">SELL மட்டும்</option>
+                        <option value="HOLD">HOLD மட்டும்</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select id="pctFilter" class="form-select">
+                        <option value="ALL">அனைத்து %</option>
+                        <option value="POSITIVE">நேர்மறை %</option>
+                        <option value="NEGATIVE">எதிர்மறை %</option>
+                        <option value="HIGH">+2% க்கு மேல்</option>
+                        <option value="LOW">-2% க்கு கீழ்</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select id="reasonFilter" class="form-select">
+                        <option value="ALL">அனைத்து பங்குகள்</option>
+                        <option value="MULTIPLE">1+ காரணங்கள்</option>
+                        <option value="HIGHLIGHT">முக்கிய பங்குகள்</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select id="sortFilter" class="form-select">
+                        <option value="default">இயல்பு வரிசை</option>
+                        <option value="pct_high">அதிக சதவீத மாற்றம் (↑)</option>
+                        <option value="pct_low">குறைந்த சதவீத மாற்றம் (↓)</option>
+                        <option value="name">பங்கு பெயர் (A-Z)</option>
+                        <option value="reasons">பல காரணங்கள் (↓)</option>
+                        <option value="target_high">அதிக டார்கெட் (↓)</option>
+                    </select>
+                </div>
+                <div class="col-md-1">
+                    <button class="btn btn-primary w-100" onclick="showDashboard()" title="டாஸ்போர்டு">
+                        <i class="fas fa-tachometer-alt"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="row g-3 mt-2">
+                <div class="col-md-2">
+                    <button class="btn btn-dark w-100" onclick="exportData()">
+                        <i class="fas fa-download"></i> ஏற்றுக
+                    </button>
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-warning w-100" onclick="showHighlightedStocks()">
+                        <i class="fas fa-star"></i> முக்கிய பங்குகள்
+                    </button>
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-success w-100" onclick="showAllStocks()">
+                        <i class="fas fa-list"></i> அனைத்தும்
+                    </button>
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-info w-100" onclick="showChangeCalculationInfo()">
+                        <i class="fas fa-calculator"></i> கணக்கீடு
+                    </button>
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-secondary w-100" onclick="saveToLocalStorage()">
+                        <i class="fas fa-save"></i> சேமி
+                    </button>
+                </div>
+                <div class="col-md-2">
+                    <button class="btn print-btn w-100" onclick="printCurrentPage()">
+                        <i class="fas fa-print"></i> பிரிண்ட்
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover" id="resultsTable">
+                <thead class="table-dark">
+                    <tr>
+                        <th>#</th>
+                        <th>பங்கு பெயர்</th>
+                        <th>விலை (₹)</th>
+                        <th>மாற்றம் தொகை*</th>
+                        <th>மாற்றம் %</th>
+                        <th>Series</th>
+                        <th>சிக்னல்</th>
+                        <th>காரணம்</th>
+                        <th>டார்கெட்</th>
+                        <th>ஸ்டாப் லாஸ்</th>
+                        <th class="no-print">பகிர்</th>
+                    </tr>
+                </thead>
+                <tbody id="results">
+                    <!-- Results will be populated here -->
+                </tbody>
+            </table>
+            <p class="text-muted small mt-2">*மாற்றம் தொகை = (தற்போதைய விலை × மாற்றம் %) ÷ 100</p>
+        </div>
+        
+        <div id="noResults" style="display:none;">
+            <div class="alert alert-info text-center">
+                <i class="fas fa-info-circle fa-lg"></i>
+                <h5 class="mt-2">தேடலுக்கு பொருந்தும் பங்குகள் இல்லை</h5>
+                <p>தேடல் சொல்லை மாற்றி மீண்டும் முயற்சிக்கவும்</p>
+            </div>
+        </div>
+        
+        <nav aria-label="Page navigation" class="no-print">
+            <ul class="pagination justify-content-center" id="pagination">
+                <!-- Pagination will be generated here -->
+            </ul>
+        </nav>
+        
+        <div class="footer no-print">
+            <p>பங்குச் சந்தை பகுப்பாய்வு அமைப்பு &copy; 2023 | StocksTraded.csv (EQ பங்குகள் மட்டும்) அடிப்படையில்</p>
+            <p class="small">பரிந்துரைகள் தகவல் நோக்கத்திற்காக மட்டுமே. முதலீட்டு முடிவுகளுக்கு முன் உங்கள் ஆராய்ச்சி செய்யவும்</p>
+        </div>
+    </div>
+</div>
+
+<!-- பிரிண்ட் பகுதி (மறைந்து இருக்கும்) -->
+<div id="printable-area" style="display: none;">
+    <h2 style="text-align: center; margin-bottom: 20px;">📊 பங்குச் சந்தை பகுப்பாய்வு முடிவுகள்</h2>
+    
+    <div style="margin-bottom: 15px;">
+        <p><strong>தேதி:</strong> <span id="print-date"></span></p>
+        <p><strong>மொத்த EQ பங்குகள்:</strong> <span id="print-total"></span> | 
+           <strong>BUY:</strong> <span id="print-buy"></span> | 
+           <strong>SELL:</strong> <span id="print-sell"></span> | 
+           <strong>HOLD:</strong> <span id="print-hold"></span></p>
+    </div>
+    
+    <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+        <thead>
+            <tr style="background-color: #f2f2f2;">
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">#</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">பங்கு பெயர்</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">விலை (₹)</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">மாற்றம் %</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Series</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">சிக்னல்</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">காரணம்</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">டார்கெட்</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">ஸ்டாப் லாஸ்</th>
+            </tr>
+        </thead>
+        <tbody id="print-body">
+            <!-- பிரிண்ட் தரவு இங்கே நிரப்பப்படும் -->
+        </tbody>
+    </table>
+    
+    <div style="margin-top: 20px; font-size: 12px; color: #666;">
+        <p>*மாற்றம் தொகை = (தற்போதைய விலை × மாற்றம் %) ÷ 100</p>
+        <p>பரிந்துரைகள் தகவல் நோக்கத்திறக்காக மட்டுமே. முதலீட்டு முடிவுகளுக்கு முன் உங்கள் ஆராய்ச்சி செய்யவும்</p>
+    </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>

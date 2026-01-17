@@ -1,0 +1,13 @@
+பங்குச்-சந்தை-பகுப்பாய்வு/
+├── index.html          # முதன்மை HTML கோப்பு
+├── styles.css         # CSS ஸ்டைல் கோப்பு
+├── script.js          # JavaScript கோப்பு
+├── README.md          # விளக்கக் கோப்பு
+└── CSV கோப்புகள்/     # பதிவேற்ற CSV கோப்புகள்
+    ├── StocksTraded.csv
+    ├── 52WeekHigh.csv
+    ├── 52WeekLow.csv
+    ├── Upper Band.csv
+    ├── Lower Band.csv
+    ├── T20-gainers.csv
+    └── T20-loosers.csv
